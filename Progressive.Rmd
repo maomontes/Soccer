@@ -181,6 +181,49 @@ plot_poss(big_5_pos_teams,  "cpa_carries", "att_pen_touches",
 
 ```
 
+Shots and Touches on Penaltry Area
+```{r}
+# mean_values <- function(data, column1, column2) {
+#   means <- data %>%
+#     mutate(across(c(!!sym(column1), !!sym(column2)), ~ .x / mins_per_90)) %>% 
+#     summarise(avg_col1 = mean(!!sym(column1), na.rm = TRUE),
+#               avg_col2 = mean(!!sym(column2), na.rm = TRUE))
+#   return(means)
+# }
+
+#Base R Great Example of Apply Function
+calculate_means <- function(data, column1, column2) {
+  data[, c(column1, column2)] <- lapply(data[, c(column1, column2)], 
+                                      function(x) x / data$mins_per_90)
+  # Calculate mean of each column separately, removing NA values
+  means <- sapply(data[, c(column1, column2)], mean, na.rm = TRUE)
+  return(means)
+}
+
+
+
+calculate_means(shot_touches, "prg_r_receiving", "att_pen_touches")
+
+shot_touches %>% 
+  mutate(across(c("npx_g_expected", "att_pen_touches"), ~ .x / mins_per_90)) %>% 
+  ggplot(aes(npx_g_expected, att_pen_touches, color = comp)) +
+  geom_point() +
+  #geom_smooth(method = "lm", se = FALSE) +
+  geom_vline(xintercept = calculate_means(shot_touches, "npx_g_expected", NULL)) +
+  geom_hline(yintercept = calculate_means(shot_touches, "att_pen_touches", NULL)) +
+  geom_text_repel(aes(label = squad), max.overlaps = 5) +
+  scale_color_brewer(palette = "Set1") +
+  theme_minimal()
+
+plot_shots <- function(data, xvar, yvar) {
+  xvar_sym = sym(xvar)
+  yvar_sym = sym(yvar)
+  
+  data %>% 
+    
+}
+  
+```
 
 I have to analyze xG for 23/24
   -Player
