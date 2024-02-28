@@ -223,8 +223,8 @@ shot_touches %>%
   geom_smooth(method = "lm", se = FALSE) +
   scale_color_gradientn(colors = c("blue", "green", "yellow", "red"),
                         values = scales::rescale(c(0, 0.25, 0.75, 1))) +
-  geom_vline(xintercept = mean(shot_touches$npx_g_expected)) +
-  geom_hline(yintercept = mean(shot_touches$dist_standard)) +
+  # geom_vline(xintercept = mean(shot_touches$npx_g_expected)) +
+  # geom_hline(yintercept = mean(shot_touches$dist_standard)) +
   # geom_vline(xintercept = calculate_means(shot_touches, NULL)) +
   # geom_hline(yintercept = calculate_means(shot_touches, NULL, "dist_standard")) +
   geom_text_repel(aes(label = squad), max.overlaps = 5) +
