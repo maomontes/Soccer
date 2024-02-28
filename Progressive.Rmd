@@ -19,6 +19,7 @@ library(tidyverse)
 library(worldfootballR)
 library(rlang)
 library(ggrepel)
+library(patchwork)
 ```
 
 Teams Progression
@@ -45,9 +46,10 @@ big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
 
 #Dataframe adding non penalty shots and shots on target
 shot_touches <- big_5_pos_teams %>%
-  filter(team_or_opponent == "team") %>% 
   mutate(id = row_number()) %>% 
-  left_join(big_5_shot_teams %>% select(id, c("npx_g_expected", "so_t_standard")), by = "id")
+  filter(team_or_opponent == "team") %>% 
+  left_join(., big_5_shot_teams %>% select("id", c("npx_g_expected", "so_t_standard",
+                                              "gls_standard", "so_t_standard")), by = "id")
 ```
 
 Players Progression
@@ -204,17 +206,20 @@ calculate_means <- function(data, column1, column2) {
 
 calculate_means(shot_touches, "prg_r_receiving", "att_pen_touches")
 
-shot_touches %>% 
-  mutate(across(c("npx_g_expected", "att_pen_touches"), ~ .x / mins_per_90)) %>% 
-  ggplot(aes(npx_g_expected, att_pen_touches, color = comp)) +
+p2 <- shot_touches %>% 
+  mutate(across(c("npx_g_expected", "att_pen_touches", "gls_standard",
+                  "so_t_standard"), ~ .x / mins_per_90)) %>% 
+  ggplot(aes(npx_g_expected, att_pen_touches, color = so_t_standard)) +
   geom_point() +
-  #geom_smooth(method = "lm", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_color_gradientn(colors = c("blue", "green", "yellow", "red"),
+                        values = scales::rescale(c(0, 0.25, 0.75, 1))) +
   geom_vline(xintercept = calculate_means(shot_touches, "npx_g_expected", NULL)) +
-  geom_hline(yintercept = calculate_means(shot_touches, "att_pen_touches", NULL)) +
+  geom_hline(yintercept = calculate_means(shot_touches, NULL, "att_pen_touches")) +
   geom_text_repel(aes(label = squad), max.overlaps = 5) +
-  scale_color_brewer(palette = "Set1") +
+  #scale_color_brewer(palette = "Set1") +
   theme_minimal()
-
+p1 + p2
 plot_shots <- function(data, xvar, yvar) {
   xvar_sym = sym(xvar)
   yvar_sym = sym(yvar)
