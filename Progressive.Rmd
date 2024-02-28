@@ -17,5 +17,263 @@ When you click the **Knit** button a document will be generated that includes bo
 ```{r}
 library(tidyverse)
 library(worldfootballR)
+library(rlang)
+library(ggrepel)
 ```
 
+Teams Progression
+```{r}
+big_5_pos_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "possession",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names()
+
+big_5_pass_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "passing",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names()
+
+
+big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "shooting",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names() %>% 
+  mutate(id = row_number())
+
+#Dataframe adding non penalty shots and shots on target
+shot_touches <- big_5_pos_teams %>%
+  filter(team_or_opponent == "team") %>% 
+  mutate(id = row_number()) %>% 
+  left_join(big_5_shot_teams %>% select(id, c("npx_g_expected", "so_t_standard")), by = "id")
+```
+
+Players Progression
+```{r}
+big_5_pos_players <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "possession",
+                                            team_or_player = "player") %>% 
+  as_tibble() %>% 
+  janitor::clean_names()
+```
+
+Progressive Passes
+-why big difference on Prem
+-why La Liga so low
+-plots of progressive leagues
+  -progressive passes received
+  -touches on pen area
+  -progressive carries pen area
+```{r}
+big_5_pos_teams %>% 
+  filter(team_or_opponent == "team") %>% view()
+
+big_5_pos_teams %>% 
+  filter(team_or_opponent == "team") %>% 
+  transmute(att_take / mins_per_90, carries_carries / mins_per_90) %>% 
+  summary()
+
+big_5_pos_teams %>%
+  filter(team_or_opponent == "team") %>%
+  mutate(prrec_90 = prg_r_receiving / mins_per_90,
+         carr_90 = prg_c_carries / mins_per_90) %>% 
+  group_by(comp) %>% 
+  summarise(percent25 = quantile(carr_90, probs = .25),
+            percent50 = quantile(carr_90, probs = .50),
+            percent75 = quantile(carr_90, probs = .75),
+            percent90 = quantile(carr_90, probs = .9))
+
+
+premLA_pos_teams <- big_5_pos_teams %>% 
+  filter(team_or_opponent == "team") %>% 
+  mutate(prrec_90 = prg_r_receiving / mins_per_90)
+
+premLA_pos_teams %>% 
+  filter(comp %in% c("La Liga", "Premier League", "Ligue 1")) %>% 
+  ggplot(aes(y = reorder(squad, prrec_90), x = prrec_90, fill = comp)) +
+  geom_col() +
+  geom_vline(xintercept = mean(premLA_pos_teams$prrec_90), color = "red", linetype =
+                           "dashed", linewidth = 1)
+
+#Standard Deviation per league and teams
+big_5_pos_teams %>% 
+  filter(team_or_opponent == "team") %>% 
+  mutate(across(8:29, ~ .x / mins_per_90)) %>% 
+  ggplot(aes(comp, att_pen_touches, fill = comp)) +
+  geom_boxplot()
+
+
+#Function for Plotting Normalized Possesion Stats per League 
+plot_sd <- function(data, x_var1, squads, sub_t = "") {
+  x_var_sym <- rlang::sym(x_var1)
+  squads_sym <- rlang::sym(squads)
+  
+  data %>%
+    filter(team_or_opponent == "team") %>% 
+    mutate(across(8:29, ~ .x/mins_per_90),
+           round_sd = round((.data[[x_var1]] - mean(.data[[x_var1]], na.rm = TRUE)) / 
+                              sd(.data[[x_var1]], na.rm = TRUE), 2),
+           ab_type = if_else(round_sd < 0, "below", "above")) %>% 
+    ggplot(aes(x = reorder(!!squads_sym, round_sd), round_sd, label = ab_type)) +
+    geom_bar(stat = "identity", aes(fill = ab_type), width = .5) +
+    scale_fill_manual(name="", 
+                      labels = c("Above Average", "Below Average"), 
+                      values = c("above"="#00ba38", "below"="#f8766d")) +
+    labs(x = "Competition",
+         y = "Standard Deviation",
+         subtitle= sub_t, 
+         title= "Diverging Bars") + 
+    coord_flip() +
+    theme_minimal()
+} 
+
+plot_sd(big_5_pos_teams, 
+        "final_third_carries", 
+        squads = "comp", 
+        sub_t = "Normalised Final Third Carries per 90")
+
+
+# Function plots variables in possesion
+plot_poss <- function(data, x_var, y_var, title = "", x_lab = "", y_lab = "", font_family = "Arial") {
+  # Convert string variable names to symbols
+  x_var_sym <- sym(x_var)
+  y_var_sym <- sym(y_var)
+  
+  # Calculate the mean of y_var after the necessary data transformations
+  y_mean <- data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(8:29, ~ .x / mins_per_90)) %>%
+    summarise(mean_y = mean(!!y_var_sym, na.rm = TRUE)) %>%
+    pull(mean_y)
+  
+  x_mean <- data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(8:29, ~ .x / mins_per_90)) %>%
+    summarise(mean_x = mean(!!x_var_sym, na.rm = TRUE)) %>%
+    pull(mean_x)
+
+  # Create the plot
+  data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(8:29, ~ .x / mins_per_90)) %>%
+    ggplot(aes(x = !!x_var_sym, y = !!y_var_sym, color = comp)) +
+    geom_point() +
+    geom_hline(yintercept = y_mean, linetype = "dashed", color = "blue") +
+    geom_vline(xintercept = x_mean, linetype = "dashed", color = "blue") +
+    scale_color_manual(values = c("Premier League" = "#1f77b4", "Bundesliga" = "#ff7f0e", 
+                                  "La Liga" = "#2ca02c", "Serie A" = "#d62728", 
+                                  "Ligue 1" = "#9467bd")) +
+    geom_text_repel(aes(label = squad), max.overlaps = 5) +
+    labs(title = title, 
+         subtitle = "per 90 minutes",
+         x = x_lab, y = y_lab, color = "Competition") +
+    theme_minimal() +
+    theme(text = element_text(family = font_family))
+}
+
+plot_poss(big_5_pos_teams,  "cpa_carries", "att_pen_touches",
+          title = "Carries into Pen Area  vs. Touches Attacking Pen Area",
+          x_lab = "Carries into Pen Area", 
+          y_lab = "Touches Attacking Pen Area",
+          font_family = "Helvetica")
+
+```
+
+
+I have to analyze xG for 23/24
+  -Player
+  -Team
+```{r}
+plot_shots <- function(data, xvar, yvar, title = "", x_lab = "", y_lab = "", font_family = "Arial") {
+  # Convert string variable names to symbols
+  x_var_sym <- sym(x_var)
+  y_var_sym <- sym(y_var)
+  
+  # Calculate the mean of y_var after the necessary data transformations
+  y_mean <- data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(c("gls_standard", "x_g_expected"), ~ .x / mins_per_90)) %>%
+    summarise(mean_y = mean(!!y_var_sym, na.rm = TRUE)) %>%
+    pull(mean_y)
+  
+  x_mean <- data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(c("gls_standard", "x_g_expected"), ~ .x / mins_per_90)) %>%
+    summarise(mean_x = mean(!!x_var_sym, na.rm = TRUE)) %>%
+    pull(mean_x)
+  
+  # Create the plot
+  data %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(c("gls_standard", "x_g_expected"), ~ .x / mins_per_90)) %>%
+    ggplot(aes(x = !!x_var_sym, y = !!y_var_sym, color = comp)) +
+    geom_point() +
+    geom_hline(yintercept = y_mean, linetype = "dashed", color = "blue") +
+    geom_vline(xintercept = x_mean, linetype = "dashed", color = "blue") +
+    scale_color_manual(values = c("Premier League" = "#1f77b4", "Bundesliga" = "#ff7f0e", 
+                                  "La Liga" = "#2ca02c", "Serie A" = "#d62728", 
+                                  "Ligue 1" = "#9467bd")) +
+    geom_text_repel(aes(label = squad), max.overlaps = 5) +
+    labs(title = title, x = x_lab, y = y_lab, color = "Competition") +
+    theme_minimal() +
+    theme(text = element_text(family = font_family))
+  
+}
+
+big_5_shot_teams %>% 
+  filter(team_or_opponent == "team") %>% 
+  group_by(comp) %>% 
+  summarise(mean_gls = mean(gls_standard)) %>% view()
+
+big_5_shot_teams %>% 
+  filter(team_or_opponent == "team") %>% 
+  mutate(across(c("npx_g_expected", "gls_standard"), ~ .x / mins_per_90)) %>%
+  ggplot(aes(x = gls_standard, y = x_g_expected, color = so_t_per_90_standard)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_text_repel(aes(label = squad), max.overlaps = 5) +
+  scale_color_gradientn(colors = c("blue", "green", "yellow", "red"), 
+                        values = scales::rescale(c(0, 0.25, 0.75, 1))) +
+  theme_minimal() +
+  labs(x = "Goals per 90 Minutes", y = "Expected Goals per 90 Minutes", 
+       color = "Shots on Target per 90 Minutes")
+  
+big_5_shot_teams <- big_5_shot_teams %>%
+    filter(team_or_opponent == "team") %>%
+    mutate(across(c("x_g_expected", "gls_standard"), ~ .x / mins_per_90),
+           so_t_per_90_standard_binned = cut(so_t_per_90_standard,
+                                             breaks = quantile(so_t_per_90_standard, probs = 0:4/4, na.rm = TRUE),
+                                             include.lowest = TRUE,
+                                             labels = c("Low", "Medium-Low", "Medium-High", "High")))
+
+
+
+plot_shots(big_5_shot_teams, "gls_standard", "x_g_expected",
+           title = "Proggressive Carries  vs. Carries per 90",
+           x_lab = "Proggressive Carries", 
+           y_lab = "Carries",
+           font_family = "Helvetica")  
+```
+
+```{r}
+# Example categorizing a continuous variable into discrete bins
+big_5_shot_teams <- big_5_shot_teams %>%
+  filter(team_or_opponent == "team") %>%
+  mutate(across(c("npx_g_expected", "gls_standard"), ~ .x / mins_per_90),
+         np_g_minus_x_g_expected_binned = cut(np_g_minus_x_g_expected,
+                                            breaks = quantile(np_g_minus_x_g_expected, probs = 0:4/4, na.rm = TRUE),
+                                            include.lowest = TRUE,
+                                            labels = c("Low", "Medium-Low", "Medium-High", "High")))
+
+# Plot with discrete color scale
+ggplot(big_5_shot_teams, aes(x = gls_standard, y = npx_g_expected, color = np_g_minus_x_g_expected_binned)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_text_repel(aes(label = squad), max.overlaps = 5) +
+  scale_color_manual(values = c("Low" = "#4575b4", "Medium-Low" = "#91bfdb", "Medium-High" = "#fdae61", "High" = "#d73027")) +
+  theme_minimal() +
+  labs(x = "Goals per 90 Minutes", y = "Non Pen Expected Goals per 90 Minutes", 
+       color = "Difference Non Pen xG per 90 Categories")
+```
