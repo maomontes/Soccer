@@ -48,8 +48,11 @@ big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
 shot_touches <- big_5_pos_teams %>%
   mutate(id = row_number()) %>% 
   filter(team_or_opponent == "team") %>% 
-  left_join(., big_5_shot_teams %>% select("id", c("npx_g_expected", "so_t_standard",
-                                              "gls_standard", "so_t_standard", "npx_g_per_sh_expected", "dist_standard", "sh_per_90_standard")), by = "id")
+  left_join(., big_5_shot_teams %>% select("id", 7:23), by = "id") %>% 
+  select(-id, -url)
+
+# select("id", c("npx_g_expected", "so_t_standard",
+#                                               "gls_standard", "so_t_standard", "npx_g_per_sh_expected", "dist_standard", "sh_per_90_standard"))
 ```
 
 Players Progression
@@ -202,65 +205,60 @@ calculate_means <- function(data, column1, column2) {
   return(means)
 }
 
-calculate_means(shot_touches, "prg_r_receiving", "att_pen_touches")
+calculate_means(shot_touches, "npx_g_expected", NULL)
 
-adj_var <- function(data, xvar) {
-  adj_val <- data %>% 
-    group_by(comp) %>% 
-    mutate(adj_value = !!sym(xvar) - mean(poss, na.rm = TRUE)) %>% 
-    ungroup() %>% 
-    pull(adj_value) # Extracts the 'adj_value' column as a vector
-  return(adj_val)
-}
-
-adj_var(shot_touches, "npx_g_expected")
 
 shot_touches %>%
-  mutate(across(c("npx_g_expected", "att_pen_touches", "gls_standard",
-                  "so_t_standard"), ~ .x / mins_per_90)) %>%
+  mutate(across(c("npx_g_expected", "so_t_standard"), ~ .x / mins_per_90)) %>% 
   ggplot(aes(npx_g_expected, dist_standard, color = so_t_standard)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
   scale_color_gradientn(colors = c("blue", "green", "yellow", "red"),
                         values = scales::rescale(c(0, 0.25, 0.75, 1))) +
   # geom_vline(xintercept = mean(shot_touches$npx_g_expected)) +
-  # geom_hline(yintercept = mean(shot_touches$dist_standard)) +
-  # geom_vline(xintercept = calculate_means(shot_touches, NULL)) +
-  # geom_hline(yintercept = calculate_means(shot_touches, NULL, "dist_standard")) +
+  geom_hline(yintercept = mean(shot_touches$dist_standard)) +
+  geom_vline(xintercept = calculate_means(shot_touches, "npx_g_expected", NULL)) +
+  #geom_hline(yintercept = calculate_means(shot_touches, NULL, "so_t_standard")) +
   geom_text_repel(aes(label = squad), max.overlaps = 5) +
   #scale_color_brewer(palette = "Set1") +
   theme_minimal()
 
 p1 + p2
 
-
-
-per_90_adj <- function(data, xvar, yvar, comp = "comp", poss = "poss", mins_per_90 = "mins_per_90") {
-  # Check if xvar or yvar is not in the dataframe
-  if (!xvar %in% names(data) | !yvar %in% names(data)) {
-    stop("At least one specified column for adjustment not found in the dataframe.")
-  }
-  
-  # Check if column names contain digits
-  if (grepl("[[:digit:]]", xvar) & grepl("[[:digit:]]", yvar)) {
-    warning("Both columns contain numeric strings in their names.")
-  }
-  
-  # Perform adjustment
-  adj_data <- data %>%
-    group_by(!!sym(comp)) %>%
-    mutate(
-      adj_xvar = (!!sym(xvar) - mean(!!sym(poss), na.rm = TRUE)) / !!sym(mins_per_90),
-      adj_yvar = (!!sym(yvar) - mean(!!sym(poss), na.rm = TRUE)) / !!sym(mins_per_90)
-    ) %>%
-    ungroup()
-  
-  return(list(adj_xvar = adj_data$adj_xvar,
-              adj_yvar = adj_data$adj_yvar))
-}
-
-
-per_90_adj(shot_touches, "npx_g_expected", NULL) 
+# adj_var <- function(data, xvar) {
+#   adj_val <- data %>% 
+#     group_by(comp) %>% 
+#     mutate(adj_value = !!sym(xvar) - mean(poss, na.rm = TRUE)) %>% 
+#     ungroup() %>% 
+#     pull(adj_value) # Extracts the 'adj_value' column as a vector
+#   return(adj_val)
+# }
+# 
+# per_90_adj <- function(data, xvar, yvar, comp = "comp", poss = "poss", mins_per_90 = "mins_per_90", ...) {
+#   # Check if xvar or yvar is not in the dataframe
+#   if (!xvar %in% names(data) | !yvar %in% names(data)) {
+#     stop("At least one specified column for adjustment not found in the dataframe.")
+#   }
+#   
+#   # Check if column names contain digits
+#   if (grepl("[[:digit:]]", xvar) & grepl("[[:digit:]]", yvar)) {
+#     warning("Both columns contain numeric strings in their names.")
+#   }
+#   
+#   # Perform adjustment
+#   adj_data <- data %>%
+#     group_by(!!sym(comp)) %>%
+#     mutate(
+#       adj_xvar = (!!sym(xvar) - mean(!!sym(poss), na.rm = TRUE)) / !!sym(mins_per_90),
+#       adj_yvar = (!!sym(yvar) - mean(!!sym(poss), na.rm = TRUE)) / !!sym(mins_per_90)
+#     ) %>%
+#     ungroup()
+#   
+#   return(list(adj_xvar = adj_data$adj_xvar,
+#               adj_yvar = adj_data$adj_yvar))
+# }
+# 
+# per_90_adj(shot_touches, "prg_r_receiving", "att_pen_touches", "dist_standard")
 
 ```
 
