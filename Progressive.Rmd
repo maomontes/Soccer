@@ -188,6 +188,28 @@ plot_poss(big_5_pos_teams,  "cpa_carries", "att_pen_touches",
 
 Shots and Touches on Penaltry Area
 ```{r}
+plot_histo <- function(data, xvar) {
+  # Ensure variable names are character strings
+  xvar_name <- rlang::as_name(rlang::ensym(xvar))
+  
+  # Check if the necessary columns exist in the dataframe
+  if (!(xvar_name %in% names(data)) || !("mins_per_90" %in% names(data))) {
+    stop("Specified column or 'mins_per_90' not found in the dataframe.")
+  }
+  
+  # Proceed with the plot
+  data %>%
+    mutate(val = .data[[xvar_name]] / .data[["mins_per_90"]]) %>%
+    ggplot(aes(x = val)) +
+    geom_histogram(bins = 35) +
+    labs(
+      title = paste("Histogram of", xvar_name, "adjusted by mins per 90"),
+      x = xvar_name,
+      y = "Frequency"
+    )
+}
+
+plot_histo(shot_touches, "cpa_carries")
 # mean_values <- function(data, column1, column2) {
 #   means <- data %>%
 #     mutate(across(c(!!sym(column1), !!sym(column2)), ~ .x / mins_per_90)) %>% 
@@ -205,20 +227,20 @@ calculate_means <- function(data, column1, column2) {
   return(means)
 }
 
-calculate_means(shot_touches, "npx_g_expected", NULL)
+calculate_means(shot_touches, "cpa_carries", "att_pen_touches")
 
 
 shot_touches %>%
-  mutate(across(c("npx_g_expected", "so_t_standard"), ~ .x / mins_per_90)) %>% 
-  ggplot(aes(npx_g_expected, dist_standard, color = so_t_standard)) +
+  mutate(across(c("cpa_carries", "att_pen_touches", "prg_dist_carries"), ~ .x / mins_per_90)) %>% 
+  ggplot(aes(cpa_carries, att_pen_touches, color = prg_dist_carries)) +
   geom_point() +
   geom_smooth(method = "lm", se = FALSE) +
   scale_color_gradientn(colors = c("blue", "green", "yellow", "red"),
                         values = scales::rescale(c(0, 0.25, 0.75, 1))) +
   # geom_vline(xintercept = mean(shot_touches$npx_g_expected)) +
-  geom_hline(yintercept = mean(shot_touches$dist_standard)) +
-  geom_vline(xintercept = calculate_means(shot_touches, "npx_g_expected", NULL)) +
-  #geom_hline(yintercept = calculate_means(shot_touches, NULL, "so_t_standard")) +
+  #geom_hline(yintercept = mean(shot_touches$dist_standard)) +
+  geom_vline(xintercept = calculate_means(shot_touches, "cpa_carries", NULL)) +
+  geom_hline(yintercept = calculate_means(shot_touches, NULL, "att_pen_touches")) +
   geom_text_repel(aes(label = squad), max.overlaps = 5) +
   #scale_color_brewer(palette = "Set1") +
   theme_minimal()
