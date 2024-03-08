@@ -1,0 +1,40 @@
+---
+title: "kmvsw"
+output: html_document
+date: "2024-03-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(worldfootballR)
+library(ggrepel)
+library(patchwork)
+library(ggforce)
+```
+
+```{r}
+big_5_pos_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "possession",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names()
+
+big_5_pass_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "passing",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names()
+
+
+big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+                                            stat_type = "shooting",
+                                            team_or_player = "team") %>% 
+  as_tibble() %>% 
+  janitor::clean_names() %>% 
+  mutate(id = row_number())
+```
+
