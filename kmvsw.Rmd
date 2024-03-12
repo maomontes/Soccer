@@ -14,27 +14,108 @@ library(worldfootballR)
 library(ggrepel)
 library(patchwork)
 library(ggforce)
+library(stringr)
+library(gghighlight)
+library(ggsci)
+
+theme_set(theme_minimal())
 ```
 
 ```{r}
-big_5_pos_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+big_5_pos_teams <- fb_big5_advanced_season_stats(season_end_year = c(2021, 2022, 2023, 2024),
                                             stat_type = "possession",
                                             team_or_player = "team") %>% 
   as_tibble() %>% 
   janitor::clean_names()
 
-big_5_pass_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+big_5_pass_teams <- fb_big5_advanced_season_stats(season_end_year = c(2021, 2022, 2023, 2024),
                                             stat_type = "passing",
                                             team_or_player = "team") %>% 
   as_tibble() %>% 
   janitor::clean_names()
 
 
-big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = 2024,
+big_5_shot_teams <- fb_big5_advanced_season_stats(season_end_year = c(2021, 2022, 2023, 2024),
                                             stat_type = "shooting",
                                             team_or_player = "team") %>% 
   as_tibble() %>% 
   janitor::clean_names() %>% 
   mutate(id = row_number())
+
+df_pos <- big_5_pos_teams
+df_pass <- big_5_pass_teams
+df_shot_t <- big_5_shot_teams
 ```
 
+```{r}
+big_5_shot_players <- fb_big5_advanced_season_stats(season_end_year = c(2021, 2022, 2023, 2024),
+                                            stat_type = "shooting",
+                                            team_or_player = "player") %>% 
+  as_tibble() %>% 
+  janitor::clean_names() %>%
+  mutate(age = as.numeric(str_remove(age, "-.*$"))) %>% 
+  mutate(id = row_number())
+
+
+df_shot_p <- big_5_shot_players
+  
+```
+
+
+```{r}
+colnames (df_shot)
+
+vin_mbp <- df_shot_p %>%
+  filter(pos == c("FW"), mins_per_90 > 20, x_g_expected > 0,
+         season_end_year != 2024) %>% 
+  #filter(str_detect(player, "Vinicius Júnior|Kylian Mbappé")) %>%
+  mutate(min_played = mins_per_90 * 90)
+  
+vin_mbp %>% 
+  filter(str_detect(player, "Vinicius Júnior|Kylian Mbappé"))
+
+vin_mbp %>% 
+  ggplot(aes((gls_standard / mins_per_90), 
+             (x_g_expected / mins_per_90),
+             size = so_t_per_90_standard,
+             color = as.factor(season_end_year))) +
+  geom_point() +
+  scale_y_continuous(limits = c(0, 1.5)) +
+  gghighlight(player %in% c("Vinicius Júnior", "Kylian Mbappé"), 
+              unhighlighted_params = list(color = "gainsboro")) +
+  geom_text(aes(label = player), show.legend = FALSE) +
+  scale_color_brewer(palette = "Set1") +
+  labs(title = "Killers",
+       subtitle = "per 90 minutes and 75% of minutes played",
+       x = "Goals", y = "xG",
+       colour = "Season") +
+  guides(x =  guide_axis(cap = "both"))+
+  theme(axis.line = element_line(),
+        plot.background = element_rect(fill = "#F5F5F5"))
+  
+
+
+df_shot_p %>%
+  filter(pos == c("FW"), mins_per_90 > 20, x_g_expected > 0) %>%
+  group_by(player, season_end_year) %>% 
+  mutate(xg_90 = x_g_expected / (mins_per_90), na.rm = TRUE) %>% 
+  select(player, age, squad, xg_90, mins_per_90) %>% 
+  ungroup() %>%
+  ggplot(aes(age)) +
+  geom_histogram(bins = 20) +
+  facet_wrap(vars(season_end_year))
+
+
+df_shot_p %>%
+  #filter(str_detect(player, c('Kylian Mbappé'))) %>% 
+  filter(str_detect(pos, 'FW'), season_end_year != 2024) %>% 
+  group_by(pos) %>% 
+  summarise(mean_age = mean(age)) %>% 
+  view()
+
+df_shot_p %>% 
+  count(squad) %>% view()
+
+
+goal_log %>% view()
+```
